@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>이미지 컨버터</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #e0e0e0;
+    }
+    h1 { color: #fff; margin-bottom: 5px; }
+    .subtitle { color: #888; margin-bottom: 20px; }
+    
+    .section {
+      background: #2a2a2a;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 15px;
+    }
+    .section h3 { margin-top: 0; color: #fff; }
+    
+    /* 드롭존 */
+    .dropzone {
+      border: 2px dashed #555;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      border-color: #4a9eff;
+      background: #2a3a4a;
+    }
+    .dropzone input { display: none; }
+    
+    /* 파일 목록 */
+    .file-list {
+      margin-top: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #333;
+      border-radius: 4px;
+      margin-bottom: 5px;
+    }
+    .file-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .file-item .size { color: #888; margin-left: 10px; }
+    .file-item .remove {
+      background: #ff4444;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 2px 8px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    
+    /* 설정 */
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+    label { display: block; margin-bottom: 5px; color: #aaa; }
+    select, input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #333;
+      color: #fff;
+      font-size: 14px;
+    }
+    input[type="range"] { width: 100%; }
+    .range-value { 
+      display: inline-block; 
+      min-width: 40px; 
+      text-align: right;
+      color: #4a9eff;
+      font-weight: bold;
+    }
+    
+    /* 출력 폴더 */
+    .output-path {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .output-path input { flex: 1; }
+    .output-path button {
+      padding: 10px 15px;
+      white-space: nowrap;
+    }
+    
+    /* 버튼 */
+    button {
+      background: #4a9eff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 12px 24px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #3a8eef; }
+    button:disabled { background: #555; cursor: not-allowed; }
+    .btn-secondary { background: #555; }
+    .btn-secondary:hover { background: #666; }
+    
+    .convert-btn {
+      width: 100%;
+      padding: 15px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    
+    /* 결과 */
+    .results {
+      margin-top: 15px;
+    }
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px;
+      background: #333;
+      border-radius: 4px;
+      margin-bottom: 5px;
+    }
+    .result-item.success { border-left: 3px solid #4caf50; }
+    .result-item.error { border-left: 3px solid #ff4444; }
+    
+    /* 상태 */
+    .status {
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: 15px;
+      text-align: center;
+    }
+    .status.success { background: #1a3a1a; color: #4caf50; }
+    .status.error { background: #3a1a1a; color: #ff4444; }
+    .status.info { background: #1a2a3a; color: #4a9eff; }
+    
+    /* 진행바 */
+    .progress {
+      height: 4px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #4a9eff;
+      transition: width 0.3s;
+    }
+    
+    /* 포맷 설명 */
+    .format-desc {
+      font-size: 12px;
+      color: #888;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🖼️ 이미지 컨버터</h1>
+  <p class="subtitle">로컬에서 이미지를 변환하고 저장합니다</p>
+
+  <!-- 파일 선택 -->
+  <div class="section">
+    <h3>1. 이미지 선택</h3>
+    <div class="dropzone" id="dropzone">
+      <p>📁 이미지를 드래그하거나 클릭해서 선택</p>
+      <p style="color:#888; font-size:14px;">JPEG, PNG, WebP, AVIF, TIFF, GIF 지원</p>
+      <input type="file" id="fileInput" multiple accept="image/*">
+    </div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <!-- 변환 설정 -->
+  <div class="section">
+    <h3>2. 변환 설정</h3>
+    <div class="settings-grid">
+      <div>
+        <label for="format">출력 포맷</label>
+        <select id="format">
+          <option value="webp">WebP (권장)</option>
+          <option value="jpeg">JPEG</option>
+          <option value="png">PNG</option>
+          <option value="avif">AVIF (최신)</option>
+          <option value="tiff">TIFF</option>
+          <option value="gif">GIF</option>
+        </select>
+        <p class="format-desc" id="formatDesc">WebP: 우수한 압축률, 대부분 브라우저 지원</p>
+      </div>
+      <div>
+        <label for="quality">품질 <span class="range-value" id="qualityValue">80</span>%</label>
+        <input type="range" id="quality" min="1" max="100" value="80">
+        <p class="format-desc">낮을수록 용량↓ 품질↓</p>
+      </div>
+      <div>
+        <label for="compression">압축 레벨 <span class="range-value" id="compressionValue">6</span></label>
+        <input type="range" id="compression" min="0" max="9" value="6">
+        <p class="format-desc">높을수록 용량↓ 속도↓</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 출력 폴더 -->
+  <div class="section">
+    <h3>3. 출력 폴더</h3>
+    <div class="output-path">
+      <input type="text" id="outputPath" placeholder="출력 폴더 경로">
+      <button type="button" class="btn-secondary" onclick="setOutputPath()">설정</button>
+      <button type="button" class="btn-secondary" onclick="openFolder()">폴더 열기</button>
+    </div>
+  </div>
+
+  <!-- 변환 버튼 -->
+  <div class="section">
+    <button class="convert-btn" id="convertBtn" onclick="convertImages()" disabled>
+      변환 시작
+    </button>
+    <div class="progress" id="progress" style="display:none;">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div id="status"></div>
+    <div class="results" id="results"></div>
+  </div>
+
+  <script>
+    let selectedFiles = [];
+
+    // 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+      loadOutputDir();
+      setupDropzone();
+      setupSettings();
+    });
+
+    // 드롭존 설정
+    function setupDropzone() {
+      const dropzone = document.getElementById('dropzone');
+      const fileInput = document.getElementById('fileInput');
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      });
+
+      dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('dragover');
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        addFiles(e.dataTransfer.files);
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        addFiles(e.target.files);
+      });
+    }
+
+    // 파일 추가
+    function addFiles(files) {
+      for (const file of files) {
+        if (file.type.startsWith('image/')) {
+          // 중복 체크
+          if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
+            selectedFiles.push(file);
+          }
+        }
+      }
+      renderFileList();
+      updateConvertButton();
+    }
+
+    // 파일 목록 렌더링
+    function renderFileList() {
+      const list = document.getElementById('fileList');
+      if (selectedFiles.length === 0) {
+        list.innerHTML = '';
+        return;
+      }
+
+      list.innerHTML = selectedFiles.map((file, index) => `
+        <div class="file-item">
+          <span class="name">${file.name}</span>
+          <span class="size">${formatSize(file.size)}</span>
+          <button class="remove" onclick="removeFile(${index})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    // 파일 제거
+    function removeFile(index) {
+      selectedFiles.splice(index, 1);
+      renderFileList();
+      updateConvertButton();
+    }
+
+    // 파일 크기 포맷
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    // 설정 이벤트
+    function setupSettings() {
+      const format = document.getElementById('format');
+      const quality = document.getElementById('quality');
+      const compression = document.getElementById('compression');
+
+      format.addEventListener('change', updateFormatDesc);
+      quality.addEventListener('input', () => {
+        document.getElementById('qualityValue').textContent = quality.value;
+      });
+      compression.addEventListener('input', () => {
+        document.getElementById('compressionValue').textContent = compression.value;
+      });
+    }
+
+    // 포맷 설명 업데이트
+    function updateFormatDesc() {
+      const format = document.getElementById('format').value;
+      const desc = document.getElementById('formatDesc');
+      const compression = document.getElementById('compression');
+      
+      const descriptions = {
+        webp: 'WebP: 우수한 압축률, 대부분 브라우저 지원',
+        jpeg: 'JPEG: 사진에 적합, 손실 압축',
+        png: 'PNG: 투명도 지원, 무손실',
+        avif: 'AVIF: 최고의 압축률, 최신 브라우저만 지원',
+        tiff: 'TIFF: 고품질, 인쇄용',
+        gif: 'GIF: 애니메이션 지원, 256색 제한'
+      };
+      
+      desc.textContent = descriptions[format] || '';
+
+      // 포맷별 압축 범위 조정
+      if (format === 'png') {
+        compression.max = 9;
+      } else if (format === 'avif') {
+        compression.max = 9;
+      } else if (format === 'webp') {
+        compression.max = 6;
+      } else if (format === 'gif') {
+        compression.max = 10;
+        compression.min = 1;
+      } else {
+        compression.max = 9;
+      }
+    }
+
+    // 출력 폴더 로드
+    async function loadOutputDir() {
+      try {
+        const res = await fetch('/api/output-dir');
+        const data = await res.json();
+        document.getElementById('outputPath').value = data.outputDir;
+      } catch (e) {
+        console.error('출력 폴더 로드 실패:', e);
+      }
+    }
+
+    // 출력 폴더 설정
+    async function setOutputPath() {
+      const path = document.getElementById('outputPath').value;
+      if (!path) {
+        showStatus('출력 경로를 입력하세요', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/set-output', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outputPath: path })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showStatus('출력 폴더가 설정되었습니다: ' + data.outputDir, 'success');
+        } else {
+          showStatus(data.error, 'error');
+        }
+      } catch (e) {
+        showStatus('설정 실패: ' + e.message, 'error');
+      }
+    }
+
+    // 폴더 열기
+    async function openFolder() {
+      try {
+        await fetch('/api/open-folder', { method: 'POST' });
+      } catch (e) {
+        console.error('폴더 열기 실패:', e);
+      }
+    }
+
+    // 변환 버튼 업데이트
+    function updateConvertButton() {
+      const btn = document.getElementById('convertBtn');
+      btn.disabled = selectedFiles.length === 0;
+      btn.textContent = selectedFiles.length > 0 
+        ? `${selectedFiles.length}개 이미지 변환 시작`
+        : '변환 시작';
+    }
+
+    // 이미지 변환
+    async function convertImages() {
+      if (selectedFiles.length === 0) return;
+
+      const btn = document.getElementById('convertBtn');
+      const progress = document.getElementById('progress');
+      const progressBar = document.getElementById('progressBar');
+      const results = document.getElementById('results');
+
+      btn.disabled = true;
+      btn.textContent = '변환 중...';
+      progress.style.display = 'block';
+      progressBar.style.width = '0%';
+      results.innerHTML = '';
+
+      const formData = new FormData();
+      selectedFiles.forEach(file => formData.append('images', file));
+      formData.append('format', document.getElementById('format').value);
+      formData.append('quality', document.getElementById('quality').value);
+      formData.append('compression', document.getElementById('compression').value);
+
+      try {
+        // 진행 표시
+        progressBar.style.width = '50%';
+
+        const res = await fetch('/api/convert', {
+          method: 'POST',
+          body: formData
+        });
+
+        progressBar.style.width = '100%';
+
+        const data = await res.json();
+
+        if (data.success) {
+          showStatus(`✅ ${data.count}개 이미지 변환 완료!`, 'success');
+          
+          // 결과 표시
+          results.innerHTML = data.results.map(r => `
+            <div class="result-item success">
+              <span>${r.original} → ${r.converted}</span>
+              <span>${formatSize(r.size)} (${r.width}×${r.height})</span>
+            </div>
+          `).join('');
+
+          // 파일 목록 초기화
+          selectedFiles = [];
+          renderFileList();
+        } else {
+          showStatus('❌ 변환 실패: ' + data.error, 'error');
+        }
+      } catch (e) {
+        showStatus('❌ 오류: ' + e.message, 'error');
+      }
+
+      btn.disabled = false;
+      updateConvertButton();
+      setTimeout(() => { progress.style.display = 'none'; }, 1000);
+    }
+
+    // 상태 표시
+    function showStatus(message, type) {
+      const status = document.getElementById('status');
+      status.className = 'status ' + type;
+      status.textContent = message;
+    }
+  </script>
+</body>
+</html>
+
